@@ -43,7 +43,7 @@ Options:
         }
         static void Main(string[] args)
         {
-            bool configHiddenWindow = true;
+            bool configHiddenWindow = false;
             string varname = "";
             string filter = "";
             string subargs = "/C ";
