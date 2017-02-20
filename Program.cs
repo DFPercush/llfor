@@ -25,15 +25,20 @@ namespace llfor
         static void usage( )
         {
             Console.Write(
-@"Usage: llfor (options) [variable] in [pattern] [command] 
+@"llfor (options) [variable] in [pattern] [command] 
+[pattern] is a file name, optional file system wildcard, not a regex.
+[command] is a shell/cmd command in which any occurrence of ""%%variable"" will 
+    be replaced by the current matching file name.
 Options: 
     /s  Include subdirectories
     /h  Hide sub-process windows
-    /t (number)  max parallel task count
-
-[pattern] is a file name, wildcards optional. file system wildcard, not a regex.
-[command] is a shell command in which any occurrence of ""%%variable"" will be
-    replaced by the current matching file name.
+    /t (number)  Max parallel task count.
+                 Defaults to (Environment.ProcessorCount).
+    /q  Quiet. Implies /-w
+    /w  Wait for a key press when complete.
+    TODO: /p  Pipe the list of variable substitutions (varsubs) from stdin.
+            The command will be executed for each new line.
+        /f (filename)  Read the list of varsubs ^ from a file.
 ");
         }
         static void Main(string[] args)
@@ -44,14 +49,31 @@ Options:
             string subargs = "/C ";
             int argofs = 0;
             bool subdir = false;
+            bool quiet = false;
+            bool wait = false;
             int tCount = Environment.ProcessorCount;
             for (argofs = 0; argofs < args.Length; argofs++)
             {
                 if (args[argofs][0] == '/')
                 {
-                    if (args[argofs].ToLower() == "/s") { subdir = true; }
-                    else if (args[argofs].ToLower() == "/h") { configHiddenWindow = false; }
-                    else if (args[argofs].ToLower() == "/t")
+                    string curArg = args[argofs].ToLower();
+                    if (curArg == "/s") { subdir = true; }
+                    else if (curArg == "/-s") { subdir = false; }
+                    else if (curArg == "/+s") { subdir = true; }
+
+                    else if (curArg == "/h") { configHiddenWindow = true; }
+                    else if (curArg == "/-h") { configHiddenWindow = false; }
+                    else if (curArg == "/+h") { configHiddenWindow = true; }
+
+                    else if (curArg == "/q") { quiet = true; }
+                    else if (curArg == "/-q") { quiet = false; }
+                    else if (curArg == "/+q") { quiet = true; }
+
+                    else if (curArg == "/w") { wait = true; }
+                    else if (curArg == "/-w") { wait = false; }
+                    else if (curArg == "/+w") { wait = true; }
+
+                    else if (curArg == "/t")
                     {
                         argofs++;
                         if (argofs >= args.Length) { break; }
@@ -100,7 +122,10 @@ Options:
                 }
                 catch (Exception e)
                 {
-                    Console.WriteLine("Exception in directory scan: " + e.Message);
+                    if (!quiet)
+                    {
+                        Console.WriteLine("Exception in directory scan: " + e.Message);
+                    }
                     bContinue = false;
                 }
                 if (bContinue)
@@ -111,7 +136,10 @@ Options:
                             new ParallelOptions { MaxDegreeOfParallelism = tCount },
                             (string filename) =>
                             {
-                                System.Console.WriteLine(DateTime.Now.ToShortDateString() + " " + DateTime.Now.ToLongTimeString() + " Start " + filename);
+                                if (!quiet)
+                                {
+                                    System.Console.WriteLine(DateTime.Now.ToShortDateString() + " " + DateTime.Now.ToLongTimeString() + " Start " + filename);
+                                }
                                 try
                                 {
                                     System.Diagnostics.Process llproc = new System.Diagnostics.Process();
@@ -124,27 +152,49 @@ Options:
                                     llproc.StartInfo = startInfo;
                                     llproc.Start();
                                     llproc.WaitForExit();
-                                    System.Console.WriteLine(DateTime.Now.ToShortDateString() + " " + DateTime.Now.ToLongTimeString() + " Exit code " + llproc.ExitCode.ToString() + " " + filename);
+                                    if (!quiet)
+                                    {
+                                        System.Console.WriteLine(DateTime.Now.ToShortDateString() + " " + DateTime.Now.ToLongTimeString() + " Exit code " + llproc.ExitCode.ToString() + " " + filename);
+                                    }
                                 }
                                 catch (Exception e)
                                 {
-                                    System.Console.WriteLine(DateTime.Now.ToShortDateString() + " " + DateTime.Now.ToLongTimeString()
-                                        + " Error in file " + filename
-                                        + ": " + e.Message);
+                                    if (!quiet)
+                                    {
+                                        System.Console.WriteLine(DateTime.Now.ToShortDateString() + " " + DateTime.Now.ToLongTimeString()
+                                            + " Error in file " + filename
+                                            + ": " + e.Message);
+                                    }
                                 }
                             });
                     }
                     catch (Exception e)
                     {
-                        System.Console.WriteLine("Exception in parallel for loop: " + e.Message);
+                        if (!quiet)
+                        {
+                            System.Console.WriteLine("Exception in parallel for loop: " + e.Message);
+                        }
                     }
                     finally
                     {
-                        System.Console.WriteLine("Controller process finished. Press any key to exit.");
-                        System.Console.ReadKey();
+                        if (!quiet)
+                        {
+                            System.Console.WriteLine("Controller process finished. Press any key to exit.");
+                            
+                            if (wait)
+                            {
+                                System.Console.ReadKey();
+                            }
+                        }
                     }
                 }
             }
+            //else if (args[argofs + 1] == "=" 
+            //    && args[argofs + 3].ToLower() == "to"
+            //    && args.Length >= argofs + 4)
+            //{
+            //
+            //}
             else
             {
                 usage();
