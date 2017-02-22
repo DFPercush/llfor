@@ -27,13 +27,11 @@ namespace llfor
 
     class fileLineEnumerable : IEnumerable<string>
     {
-#pragma warning disable 0649
         StreamReader sr;
-#pragma warning restore 0649
         private fileLineEnumerable() { }
         public fileLineEnumerable(string filenameParam)
         {
-            StreamReader sr = new StreamReader(filenameParam);
+            sr = new StreamReader(filenameParam);
         }
         public IEnumerator<string> GetEnumerator()
         {
