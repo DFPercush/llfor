@@ -1,16 +1,4 @@
-﻿
-/*
-
-Example:
-llfor f in *.png pngout %%f
-
-Options:
-    /s include sub-directories
-    /h hide sub-process windows
-
-*/
-
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -39,8 +27,18 @@ Options:
     TODO: /p  Pipe the list of variable substitutions (varsubs) from stdin.
             The command will be executed for each new line.
         /f (filename)  Read the list of varsubs ^ from a file.
+Example:
+    llfor /w /t 8 filename in *.png pngout %%filename
+    llfor /q /t 8 logfile in ""My Documents\*.log"" MyParse.exe %%logfile
 ");
         }
+        enum InputModes
+        {
+            DIRSCAN,
+            PIPE,
+            FILE
+        };
+
         static void Main(string[] args)
         {
             bool configHiddenWindow = false;
@@ -51,6 +49,19 @@ Options:
             bool subdir = false;
             bool quiet = false;
             bool wait = false;
+
+            //----------------------
+            InputModes imode = InputModes.DIRSCAN;
+            // Pipe and file option bools are just flags for whether they've been encountered on the cmd line,
+            //   not whether the option is currently active, because it could be flipped with /-p or /-f.
+            //  In that case, these bools are used to determine which state to revert to when using the mode enum.
+            //  If one of these modes has been previously specified, and the other one's /- argument is read, 
+            //  it will revert to the previously encountered mode, rather than the default directory scan.
+            bool pipeOption = false;
+            bool fileInOption = false;
+            int userCommandArgOffset = 3; // This could vary if no file pattern needs to be specified, as in /p and /f
+            //----------------------
+
             int tCount = Environment.ProcessorCount;
             for (argofs = 0; argofs < args.Length; argofs++)
             {
@@ -73,6 +84,28 @@ Options:
                     else if (curArg == "/-w") { wait = false; }
                     else if (curArg == "/+w") { wait = true; }
 
+                    else if (curArg == "/p") { imode = InputModes.PIPE; pipeOption = true; }
+                    else if (curArg == "/+p") { imode = InputModes.PIPE; pipeOption = true; }
+                    else if (curArg == "/-p")
+                    {
+                        if (imode == InputModes.PIPE)
+                        {
+                            if (fileInOption) { imode = InputModes.FILE; }
+                            else { imode = InputModes.DIRSCAN; }
+                        }
+                    }
+
+                    else if (curArg == "/f") { imode = InputModes.FILE; fileInOption = true; }
+                    else if (curArg == "/+f") { imode = InputModes.FILE; fileInOption = true; }
+                    else if (curArg == "/-f")
+                    {
+                        if (imode == InputModes.FILE)
+                        {
+                            if (pipeOption) { imode = InputModes.PIPE; }
+                            else { imode = InputModes.DIRSCAN; }
+                        }
+                    }
+
                     else if (curArg == "/t")
                     {
                         argofs++;
@@ -87,18 +120,15 @@ Options:
             {
                 varname = args[argofs + 0];
                 filter = args[argofs + 2];
-                for (int i = argofs + 3; i < args.Length; i++)
+                for (int i = argofs + userCommandArgOffset; i < args.Length; i++)
                 {
                     subargs += args[i] + " ";
                 }
                 // trim final space
                 subargs = subargs.Substring(0, subargs.Length - 1);
-                System.IO.SearchOption subdirEnum = System.IO.SearchOption.TopDirectoryOnly;
-                if (subdir)
-                {
-                    subdirEnum = System.IO.SearchOption.AllDirectories;
-                }
 
+
+                System.IO.SearchOption subdirEnum = (subdir ? System.IO.SearchOption.AllDirectories : System.IO.SearchOption.TopDirectoryOnly);
                 string scanDir = ".";
                 string postFilter = filter;
                 string pp = Path.GetDirectoryName(filter);
