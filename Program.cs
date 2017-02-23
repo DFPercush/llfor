@@ -13,20 +13,22 @@ namespace llfor
         static void usage( )
         {
             Console.Write(
-@"llfor - parallel for loop, for batch files
+@"
+    llfor   -   parallel for loop
+
 To run a command for a set of files:
-    llfor (options) [variable] in [pattern] [command] 
+        llfor (options) [variable] in [pattern] [command] 
+To run a command for an arbitrary list of inputs...
+    from stdin:
+        llfor [options] /p [variable] [command]
+    from a file:
+        llfor [options] /f [filename] [variable] [command]
 
-To run the same command for an arbitrary list of inputs...
- from stdin:
-    llfor [options] /p [variable] [command]
- from a file:
-    llfor [options] /f [filename] [variable] [command]
-
-[pattern] is a file name, optional file system wildcard, not a regex.
+[pattern] is a file name or file system wildcard, not a regex.
     May be enclosed in double quotes if spaces are needed.
 [command] is a shell/cmd command in which any occurrence of ""%%variable"" will 
     be replaced by the current matching file name.
+
 Options: 
     /s  Include subdirectories
     /h  Hide sub-process windows
@@ -34,14 +36,19 @@ Options:
                  Defaults to (Environment.ProcessorCount).
     /q  Quiet. Implies /-w
     /w  Wait for a key press when complete.
+    /p  Pipe the list of variable substitutions (varsubs) from stdin.
+        The command will be executed for each new line.
+    /f (filename)  Read the list of varsubs from a file.
 
-    TODO: /p  Pipe the list of variable substitutions (varsubs) from stdin.
-              The command will be executed for each new line.
-          /f (filename)  Read the list of varsubs ^ from a file.
+Most options may be reset on or off by using /+ and /-
+    followed by the letter of the option in question.
+
 Examples:
+    llfor file in *.png pngout %%file
+    llfor /w /t 8 logfile in ""My Documents\*.log"" MyParse.exe %%logfile
     llfor /q /p line echo %%line
     llfor /f batchList.txt /q username copy NOTICE.txt \Users\%%username\Desktop
-    llfor /w /t 8 logfile in ""My Documents\*.log"" MyParse.exe %%logfile
+
 ");
         }
         enum InputModes
@@ -132,6 +139,11 @@ Examples:
                         int tmp = int.Parse(args[argofs]);
                         if (tmp > 0) { tCount = tmp; }
                     }
+                    else
+                    {
+                        if (!quiet) { usage(); }
+                        return;
+                    }
                 }
                 else { break; }
             }
@@ -140,6 +152,7 @@ Examples:
             else if (imode == InputModes.FILE) { userCommandArgOffset = 1; }
             else if (imode == InputModes.PIPE) { userCommandArgOffset = 1; }
 
+            if (argofs + userCommandArgOffset >= args.Length) { usage(); return; }
             varname = args[argofs + 0];
             for (int i = argofs + userCommandArgOffset; i < args.Length; i++)
             {
